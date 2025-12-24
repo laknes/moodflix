@@ -1,0 +1,5 @@
+{
+  "name": "Moodflix - سینمای حالِ خوب",
+  "description": "A Persian-language AI movie recommendation engine that finds films based on your emotional state, mental effort, and energy level using the Gemini API.",
+  "requestFramePermissions": []
+}
