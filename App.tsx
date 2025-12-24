@@ -1,9 +1,9 @@
 
 import React, { useState, useEffect } from 'react';
-import { UserMoodInput, MovieRecommendation, RecommendationResponse, MoodHistoryEntry, MoodType, Language, SystemSettings, UserSession, FeedbackType, SavedMovie } from './types';
-import { MOODS, TRANSLATIONS } from './constants';
-import { getAiRecommendations } from './services/ai';
-import { getLocalRecommendations } from './services/localDb';
+import { UserMoodInput, MovieRecommendation, RecommendationResponse, MoodType, Language, SystemSettings, UserSession, SavedMovie } from './types.ts';
+import { MOODS, TRANSLATIONS } from './constants.tsx';
+import { getAiRecommendations } from './services/ai.ts';
+import { getLocalRecommendations } from './services/localDb.ts';
 
 const DEFAULT_POSTER = "https://images.unsplash.com/photo-1485846234645-a62644f84728?q=80&w=2059&auto=format&fit=crop";
 
@@ -14,7 +14,7 @@ const NetflixLogo: React.FC<{ size?: 'sm' | 'md' | 'lg' }> = ({ size = 'md' }) =
 
 // --- Professional Setup Wizard Component ---
 const SetupWizard: React.FC<{ onComplete: (config: any) => void }> = ({ onComplete }) => {
-  const [step, setStep] = useState(0); // 0:Welcome, 1:Server, 2:Database, 3:Admin, 4:Deploying
+  const [step, setStep] = useState(0); 
   const [isBusy, setIsBusy] = useState(false);
   const [progress, setProgress] = useState(0);
   const [logs, setLogs] = useState<string[]>([]);
@@ -79,14 +79,14 @@ const SetupWizard: React.FC<{ onComplete: (config: any) => void }> = ({ onComple
 
       <div className="max-w-xl w-full glass p-8 md:p-12 rounded-[3rem] border border-white/5 relative shadow-2xl animate-in fade-in zoom-in duration-500">
         {step > 0 && (
-          <div className="flex justify-between items-center mb-12">
+          <header className="flex justify-between items-center mb-12">
             <NetflixLogo size="sm" />
             <div className="flex gap-2">
               {[1, 2, 3, 4].map(i => (
                 <div key={i} className={`h-1.5 rounded-full transition-all duration-500 ${step === i ? 'w-8 bg-netflix' : 'w-3 bg-white/10'}`} />
               ))}
             </div>
-          </div>
+          </header>
         )}
 
         {step === 0 && (
@@ -210,12 +210,18 @@ const SetupWizard: React.FC<{ onComplete: (config: any) => void }> = ({ onComple
 };
 
 const RecommendationCard: React.FC<{ m: MovieRecommendation; lang: Language; isSaved: boolean; onSave: () => void }> = ({ m, lang, isSaved, onSave }) => (
-  <div className="glass rounded-[2.5rem] overflow-hidden flex flex-col border border-white/10 group hover:-translate-y-2 transition-all duration-500">
+  <article className="glass rounded-[2.5rem] overflow-hidden flex flex-col border border-white/10 group hover:-translate-y-2 transition-all duration-500">
     <div className="relative aspect-[2/3] bg-slate-900 overflow-hidden">
       <img src={m.posterUrl || DEFAULT_POSTER} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" alt={m.title} />
       <div className="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent" />
-      <button onClick={onSave} className={`absolute top-6 right-6 p-4 rounded-full glass ${isSaved ? 'text-netflix' : 'text-white'}`}>
-        <svg className="w-6 h-6" fill={isSaved ? "currentColor" : "none"} stroke="currentColor" viewBox="0 0 24 24"><path d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" /></svg>
+      <button 
+        onClick={onSave} 
+        aria-label={isSaved ? "Remove from saved" : "Save recommendation"}
+        className={`absolute top-6 right-6 p-4 rounded-full glass transition-colors z-10 ${isSaved ? 'text-netflix bg-white/20' : 'text-white hover:bg-white/10'}`}
+      >
+        <svg className="w-6 h-6" fill={isSaved ? "currentColor" : "none"} stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+        </svg>
       </button>
       <div className="absolute bottom-6 left-6 right-6">
         <h3 className="text-3xl font-black text-white">{m.title}</h3>
@@ -224,12 +230,12 @@ const RecommendationCard: React.FC<{ m: MovieRecommendation; lang: Language; isS
     </div>
     <div className="p-8 flex-1 flex flex-col space-y-4">
       <p className="text-sm opacity-80 leading-relaxed line-clamp-3">{m.explanation}</p>
-      <div className="mt-auto pt-6 border-t border-white/5 flex justify-between items-center text-xs">
+      <footer className="mt-auto pt-6 border-t border-white/5 flex justify-between items-center text-xs">
         <span className="font-black uppercase opacity-40">{lang === 'fa' ? 'محصول' : 'Origin'}: {m.country}</span>
         <span className="font-bold">{m.suggestedTime}</span>
-      </div>
+      </footer>
     </div>
-  </div>
+  </article>
 );
 
 const App: React.FC = () => {
@@ -244,17 +250,21 @@ const App: React.FC = () => {
   });
 
   const [lang, setLang] = useState<Language>(() => (localStorage.getItem('moodflix_lang') as Language) || 'fa');
-  const [activeTab, setActiveTab] = useState<'home' | 'profile'>('home');
+  const [activeTab, setActiveTab] = useState<'home' | 'saved' | 'profile'>('home');
   const [input, setInput] = useState<UserMoodInput>({ primaryMood: 'calm', intensity: 'medium', mentalEffort: 'entertainment', energyLevel: 'medium', mode: 'single', language: lang });
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<RecommendationResponse | null>(null);
-  const [savedMovies, setSavedMovies] = useState<SavedMovie[]>([]);
+  const [savedMovies, setSavedMovies] = useState<SavedMovie[]>(() => {
+    const saved = localStorage.getItem('moodflix_saved_movies');
+    return saved ? JSON.parse(saved) : [];
+  });
 
   useEffect(() => {
     localStorage.setItem('moodflix_settings', JSON.stringify(settings));
     localStorage.setItem('moodflix_lang', lang);
+    localStorage.setItem('moodflix_saved_movies', JSON.stringify(savedMovies));
     if (session) localStorage.setItem('moodflix_session', JSON.stringify(session));
-  }, [settings, session, lang]);
+  }, [settings, session, lang, savedMovies]);
 
   const handleSetupComplete = (conf: any) => {
     setSettings({
@@ -269,6 +279,15 @@ const App: React.FC = () => {
       role: 'admin',
       isLoggedIn: true
     });
+  };
+
+  const toggleSaveMovie = (m: MovieRecommendation) => {
+    const exists = savedMovies.find(sm => sm.title === m.title);
+    if (exists) {
+      setSavedMovies(prev => prev.filter(sm => sm.title !== m.title));
+    } else {
+      setSavedMovies(prev => [...prev, { ...m, savedAt: Date.now() }]);
+    }
   };
 
   const handleRecommend = async () => {
@@ -289,54 +308,77 @@ const App: React.FC = () => {
     return <SetupWizard onComplete={handleSetupComplete} />;
   }
 
+  const isRtl = lang === 'fa';
+
   return (
-    <div className={`min-h-screen bg-slate-950 text-white flex ${lang === 'fa' ? 'font-fa rtl' : ''}`} dir={lang === 'fa' ? 'rtl' : 'ltr'}>
-      {/* Sidebar */}
-      <aside className={`fixed h-full w-20 md:w-64 glass border-white/5 flex flex-col p-6 z-50 ${lang === 'fa' ? 'right-0 border-l' : 'left-0 border-r'}`}>
+    <div className={`layout-container ${isRtl ? 'font-fa rtl' : ''}`} dir={isRtl ? 'rtl' : 'ltr'}>
+      {/* Sidebar Navigation */}
+      <aside className={`sidebar w-20 md:w-64 glass border-white/5 flex flex-col p-6 ${isRtl ? 'right-0 border-l' : 'left-0 border-r'}`}>
         <div className="mb-12 text-center md:text-left">
           <NetflixLogo size="sm" />
         </div>
-        <nav className="flex-1 space-y-4">
+        <nav className="flex-1 space-y-4" aria-label="Main Navigation">
           <button onClick={() => setActiveTab('home')} className={`w-full flex items-center gap-4 p-4 rounded-2xl transition-all ${activeTab === 'home' ? 'bg-netflix shadow-[0_0_20px_rgba(229,9,20,0.3)]' : 'hover:bg-white/5'}`}>
-            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>
+            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>
             <span className="hidden md:block font-black">{T.home}</span>
           </button>
+          <button onClick={() => setActiveTab('saved')} className={`w-full flex items-center gap-4 p-4 rounded-2xl transition-all ${activeTab === 'saved' ? 'bg-netflix shadow-[0_0_20px_rgba(229,9,20,0.3)]' : 'hover:bg-white/5'}`}>
+            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" /></svg>
+            <span className="hidden md:block font-black">{T.saved}</span>
+          </button>
           <button onClick={() => setActiveTab('profile')} className={`w-full flex items-center gap-4 p-4 rounded-2xl transition-all ${activeTab === 'profile' ? 'bg-netflix shadow-[0_0_20px_rgba(229,9,20,0.3)]' : 'hover:bg-white/5'}`}>
-            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
             <span className="hidden md:block font-black">{T.profile}</span>
           </button>
         </nav>
-        <button onClick={() => setLang(lang === 'fa' ? 'en' : 'fa')} className="mt-auto p-4 glass rounded-2xl font-black text-xs hover:bg-white/10 transition-colors">
-          {lang === 'fa' ? 'ENGLISH' : 'فارسی'}
-        </button>
+        <footer className="mt-auto">
+          <button onClick={() => setLang(lang === 'fa' ? 'en' : 'fa')} className="w-full p-4 glass rounded-2xl font-black text-xs hover:bg-white/10 transition-colors uppercase">
+            {lang === 'fa' ? 'ENGLISH' : 'فارسی'}
+          </button>
+        </footer>
       </aside>
 
-      {/* Main Content */}
-      <main className={`flex-1 p-8 md:p-12 ${lang === 'fa' ? 'mr-20 md:mr-64' : 'ml-20 md:ml-64'}`}>
-        <div className="max-w-5xl mx-auto">
-          {activeTab === 'home' ? (
+      {/* Main Content Area */}
+      <main className={`main-content p-8 md:p-12 ${isRtl ? 'mr-20 md:mr-64' : 'ml-20 md:ml-64'}`}>
+        <div className="page-wrapper">
+          {activeTab === 'home' && (
             !results ? (
-              <div className="space-y-16 py-12 animate-in fade-in duration-700">
+              <section className="space-y-16 py-12 animate-in fade-in duration-700">
                 <header className="text-center space-y-4">
                   <h1 className="text-4xl md:text-6xl font-black">{T.step1Title}</h1>
                   <p className="text-slate-500 font-bold uppercase tracking-widest">{T.subtitle}</p>
                 </header>
                 
-                <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-4" role="radiogroup" aria-label="Mood selection">
                   {MOODS.map(m => (
-                    <button key={m.type} onClick={() => setInput({...input, primaryMood: m.type})} className={`p-8 rounded-[2.5rem] border-2 transition-all flex flex-col items-center gap-4 ${input.primaryMood === m.type ? 'bg-white/10 border-netflix scale-105 shadow-[0_0_30px_rgba(229,9,20,0.2)]' : 'border-transparent opacity-40 hover:opacity-60'}`}>
+                    <button 
+                      key={m.type} 
+                      onClick={() => setInput({...input, primaryMood: m.type})} 
+                      aria-checked={input.primaryMood === m.type}
+                      role="radio"
+                      className={`p-8 rounded-[2.5rem] border-2 transition-all flex flex-col items-center gap-4 ${input.primaryMood === m.type ? 'bg-white/10 border-netflix scale-105 shadow-[0_0_30px_rgba(229,9,20,0.2)]' : 'border-transparent opacity-40 hover:opacity-60'}`}
+                    >
                       <svg className={`w-10 h-10 ${m.color}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d={m.icon} /></svg>
                       <span className="text-xs font-black uppercase tracking-tighter">{m.labels[lang]}</span>
                     </button>
                   ))}
                 </div>
 
-                <button onClick={handleRecommend} className="w-full py-8 bg-netflix rounded-[3rem] font-black text-2xl shadow-2xl hover:scale-[1.01] active:scale-95 transition-all">
-                  {loading ? T.loading : T.btnRecommend}
+                <button 
+                  onClick={handleRecommend} 
+                  disabled={loading}
+                  className="w-full py-8 bg-netflix rounded-[3rem] font-black text-2xl shadow-2xl hover:scale-[1.01] active:scale-95 transition-all disabled:opacity-50"
+                >
+                  {loading ? (
+                    <div className="flex items-center justify-center gap-4">
+                      <div className="w-6 h-6 border-4 border-white/20 border-t-white rounded-full animate-spin" />
+                      {T.loading}
+                    </div>
+                  ) : T.btnRecommend}
                 </button>
-              </div>
+              </section>
             ) : (
-              <div className="space-y-12 animate-in fade-in slide-in-from-bottom-8 duration-700">
+              <section className="space-y-12 animate-in fade-in slide-in-from-bottom-8 duration-700">
                 <header className="flex justify-between items-end border-b border-white/5 pb-8">
                    <div>
                      <h2 className="text-3xl font-black">{lang === 'fa' ? 'پیشنهادات اختصاصی' : 'Recommendations'}</h2>
@@ -351,21 +393,51 @@ const App: React.FC = () => {
                     <RecommendationCard 
                       key={i} m={m} lang={lang} 
                       isSaved={savedMovies.some(sm => sm.title === m.title)}
-                      onSave={() => {}} 
+                      onSave={() => toggleSaveMovie(m)} 
                     />
                   ))}
                 </div>
-              </div>
+              </section>
             )
-          ) : (
-            <div className="space-y-8 py-12 animate-in fade-in duration-700">
-               <div className="glass p-12 rounded-[3rem] space-y-6 relative overflow-hidden">
-                  <div className="absolute top-0 right-0 p-8">
+          )}
+
+          {activeTab === 'saved' && (
+            <section className="space-y-12 py-12 animate-in fade-in duration-700">
+              <header className="border-b border-white/5 pb-8">
+                <h2 className="text-4xl font-black">{T.saved}</h2>
+                <p className="opacity-50 mt-2">{savedMovies.length} {lang === 'fa' ? 'مورد ذخیره شده در آرشیو آفلاین شما' : 'items saved in your offline vault'}</p>
+              </header>
+              
+              {savedMovies.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  {savedMovies.map((m, i) => (
+                    <RecommendationCard 
+                      key={i} m={m} lang={lang} 
+                      isSaved={true}
+                      onSave={() => toggleSaveMovie(m)} 
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-20 opacity-30">
+                  <svg className="w-24 h-24 mx-auto mb-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+                  </svg>
+                  <p className="text-xl font-bold">{T.noSaved}</p>
+                </div>
+              )}
+            </section>
+          )}
+
+          {activeTab === 'profile' && (
+            <section className="space-y-8 py-12 animate-in fade-in duration-700">
+               <article className="glass p-12 rounded-[3rem] space-y-6 relative overflow-hidden">
+                  <header className="absolute top-0 right-0 p-8">
                      <div className="flex items-center gap-2">
                         <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
                         <span className="text-[10px] font-black uppercase opacity-50 tracking-widest">Node Online</span>
                      </div>
-                  </div>
+                  </header>
                   <h2 className="text-4xl font-black">System Profile</h2>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8 opacity-60">
                      <div className="space-y-4">
@@ -377,12 +449,12 @@ const App: React.FC = () => {
                         <p>DB Name: <span className="text-white font-bold font-mono text-sm">{settings.dbConfig?.name}</span></p>
                      </div>
                   </div>
-               </div>
-               <div className="p-8 glass rounded-[2rem] border-red-500/20 bg-red-500/5">
+               </article>
+               <aside className="p-8 glass rounded-[2rem] border-red-500/20 bg-red-500/5">
                   <h3 className="text-red-500 font-black mb-2">Troubleshooting 502 Errors</h3>
                   <p className="text-xs opacity-50 leading-relaxed">If the application becomes unreachable, verify your PM2 process status and ensure the Nginx proxy is correctly pointing to your internal node port.</p>
-               </div>
-            </div>
+               </aside>
+            </section>
           )}
         </div>
       </main>
