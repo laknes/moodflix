@@ -72,14 +72,12 @@ const SetupWizard: React.FC<{ onComplete: (config: any) => void }> = ({ onComple
 
   return (
     <div className="fixed inset-0 z-[1000] bg-[#020617] text-white flex items-center justify-center p-4">
-      {/* Dynamic Background */}
       <div className="absolute top-0 left-0 w-full h-full opacity-20 pointer-events-none overflow-hidden">
         <div className="absolute top-[-10%] right-[-10%] w-[50%] h-[50%] bg-netflix/30 blur-[120px] rounded-full animate-pulse" />
         <div className="absolute bottom-[-10%] left-[-10%] w-[50%] h-[50%] bg-blue-600/20 blur-[120px] rounded-full" />
       </div>
 
       <div className="max-w-xl w-full glass p-8 md:p-12 rounded-[3rem] border border-white/5 relative shadow-2xl animate-in fade-in zoom-in duration-500">
-        
         {step > 0 && (
           <div className="flex justify-between items-center mb-12">
             <NetflixLogo size="sm" />
@@ -115,7 +113,7 @@ const SetupWizard: React.FC<{ onComplete: (config: any) => void }> = ({ onComple
             <div className="relative">
               <input 
                 type="text" 
-                placeholder="e.g. moodflix.app or 127.0.0.1" 
+                placeholder="e.g. mood.mysite.com" 
                 className="w-full p-5 rounded-3xl bg-white/5 border border-white/10 outline-none focus:border-netflix transition-all text-lg font-mono"
                 value={config.serverUrl}
                 onChange={e => setConfig({...config, serverUrl: e.target.value})}
@@ -182,12 +180,10 @@ const SetupWizard: React.FC<{ onComplete: (config: any) => void }> = ({ onComple
               <h2 className="text-2xl font-black">{progress < 100 ? "Deploying Core" : "System Ready"}</h2>
               <p className="text-sm opacity-50">Provisioning environment for {config.serverUrl}</p>
             </div>
-
             <div className="space-y-6">
               <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden">
                 <div className="h-full bg-netflix transition-all duration-300 shadow-[0_0_20px_rgba(229,9,20,0.5)]" style={{ width: `${progress}%` }} />
               </div>
-
               <div className="h-32 bg-black/40 rounded-2xl p-4 font-mono text-[10px] text-left overflow-y-auto space-y-1 custom-scrollbar border border-white/5">
                 {logs.map((log, i) => (
                   <div key={i} className="flex gap-2">
@@ -198,7 +194,6 @@ const SetupWizard: React.FC<{ onComplete: (config: any) => void }> = ({ onComple
                 {progress < 100 && <span className="inline-block w-2 h-3 bg-white animate-pulse" />}
               </div>
             </div>
-
             {progress === 100 && (
               <button 
                 onClick={() => onComplete(config)} 
@@ -214,7 +209,6 @@ const SetupWizard: React.FC<{ onComplete: (config: any) => void }> = ({ onComple
   );
 };
 
-// --- Main App ---
 const RecommendationCard: React.FC<{ m: MovieRecommendation; lang: Language; isSaved: boolean; onSave: () => void }> = ({ m, lang, isSaved, onSave }) => (
   <div className="glass rounded-[2.5rem] overflow-hidden flex flex-col border border-white/10 group hover:-translate-y-2 transition-all duration-500">
     <div className="relative aspect-[2/3] bg-slate-900 overflow-hidden">
@@ -258,8 +252,9 @@ const App: React.FC = () => {
 
   useEffect(() => {
     localStorage.setItem('moodflix_settings', JSON.stringify(settings));
+    localStorage.setItem('moodflix_lang', lang);
     if (session) localStorage.setItem('moodflix_session', JSON.stringify(session));
-  }, [settings, session]);
+  }, [settings, session, lang]);
 
   const handleSetupComplete = (conf: any) => {
     setSettings({
@@ -295,33 +290,33 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className={`min-h-screen bg-slate-950 text-white flex ${lang === 'fa' ? 'font-fa rtl' : ''}`}>
+    <div className={`min-h-screen bg-slate-950 text-white flex ${lang === 'fa' ? 'font-fa rtl' : ''}`} dir={lang === 'fa' ? 'rtl' : 'ltr'}>
       {/* Sidebar */}
-      <aside className={`fixed h-full w-20 md:w-64 glass border-r border-white/5 flex flex-col p-6 z-50`}>
+      <aside className={`fixed h-full w-20 md:w-64 glass border-white/5 flex flex-col p-6 z-50 ${lang === 'fa' ? 'right-0 border-l' : 'left-0 border-r'}`}>
         <div className="mb-12 text-center md:text-left">
           <NetflixLogo size="sm" />
         </div>
         <nav className="flex-1 space-y-4">
-          <button onClick={() => setActiveTab('home')} className={`w-full flex items-center gap-4 p-4 rounded-2xl transition-all ${activeTab === 'home' ? 'bg-netflix' : 'hover:bg-white/5'}`}>
+          <button onClick={() => setActiveTab('home')} className={`w-full flex items-center gap-4 p-4 rounded-2xl transition-all ${activeTab === 'home' ? 'bg-netflix shadow-[0_0_20px_rgba(229,9,20,0.3)]' : 'hover:bg-white/5'}`}>
             <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>
             <span className="hidden md:block font-black">{T.home}</span>
           </button>
-          <button onClick={() => setActiveTab('profile')} className={`w-full flex items-center gap-4 p-4 rounded-2xl transition-all ${activeTab === 'profile' ? 'bg-netflix' : 'hover:bg-white/5'}`}>
+          <button onClick={() => setActiveTab('profile')} className={`w-full flex items-center gap-4 p-4 rounded-2xl transition-all ${activeTab === 'profile' ? 'bg-netflix shadow-[0_0_20px_rgba(229,9,20,0.3)]' : 'hover:bg-white/5'}`}>
             <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
             <span className="hidden md:block font-black">{T.profile}</span>
           </button>
         </nav>
-        <button onClick={() => setLang(lang === 'fa' ? 'en' : 'fa')} className="mt-auto p-4 glass rounded-2xl font-black text-xs">
+        <button onClick={() => setLang(lang === 'fa' ? 'en' : 'fa')} className="mt-auto p-4 glass rounded-2xl font-black text-xs hover:bg-white/10 transition-colors">
           {lang === 'fa' ? 'ENGLISH' : 'فارسی'}
         </button>
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 ml-20 md:ml-64 p-8 md:p-12">
+      <main className={`flex-1 p-8 md:p-12 ${lang === 'fa' ? 'mr-20 md:mr-64' : 'ml-20 md:ml-64'}`}>
         <div className="max-w-5xl mx-auto">
           {activeTab === 'home' ? (
             !results ? (
-              <div className="space-y-16 py-12">
+              <div className="space-y-16 py-12 animate-in fade-in duration-700">
                 <header className="text-center space-y-4">
                   <h1 className="text-4xl md:text-6xl font-black">{T.step1Title}</h1>
                   <p className="text-slate-500 font-bold uppercase tracking-widest">{T.subtitle}</p>
@@ -329,25 +324,27 @@ const App: React.FC = () => {
                 
                 <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
                   {MOODS.map(m => (
-                    <button key={m.type} onClick={() => setInput({...input, primaryMood: m.type})} className={`p-8 rounded-[2.5rem] border-2 transition-all flex flex-col items-center gap-4 ${input.primaryMood === m.type ? 'bg-white/10 border-netflix scale-105 shadow-xl' : 'border-transparent opacity-40'}`}>
+                    <button key={m.type} onClick={() => setInput({...input, primaryMood: m.type})} className={`p-8 rounded-[2.5rem] border-2 transition-all flex flex-col items-center gap-4 ${input.primaryMood === m.type ? 'bg-white/10 border-netflix scale-105 shadow-[0_0_30px_rgba(229,9,20,0.2)]' : 'border-transparent opacity-40 hover:opacity-60'}`}>
                       <svg className={`w-10 h-10 ${m.color}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d={m.icon} /></svg>
-                      <span className="text-xs font-black uppercase">{m.labels[lang]}</span>
+                      <span className="text-xs font-black uppercase tracking-tighter">{m.labels[lang]}</span>
                     </button>
                   ))}
                 </div>
 
-                <button onClick={handleRecommend} className="w-full py-8 bg-netflix rounded-[3rem] font-black text-2xl shadow-2xl hover:scale-[1.01] transition-all">
+                <button onClick={handleRecommend} className="w-full py-8 bg-netflix rounded-[3rem] font-black text-2xl shadow-2xl hover:scale-[1.01] active:scale-95 transition-all">
                   {loading ? T.loading : T.btnRecommend}
                 </button>
               </div>
             ) : (
-              <div className="space-y-12 animate-in fade-in slide-in-from-bottom-8">
-                <header className="flex justify-between items-end">
+              <div className="space-y-12 animate-in fade-in slide-in-from-bottom-8 duration-700">
+                <header className="flex justify-between items-end border-b border-white/5 pb-8">
                    <div>
-                     <h2 className="text-3xl font-black">Recommendations</h2>
-                     <p className="opacity-50 text-sm">Tailored for your {input.primaryMood} mood</p>
+                     <h2 className="text-3xl font-black">{lang === 'fa' ? 'پیشنهادات اختصاصی' : 'Recommendations'}</h2>
+                     <p className="opacity-50 text-sm">{lang === 'fa' ? `متناسب با حالِ ${input.primaryMood} شما` : `Tailored for your ${input.primaryMood} mood`}</p>
                    </div>
-                   <button onClick={() => setResults(null)} className="px-6 py-3 glass rounded-full text-xs font-black uppercase">Start Over</button>
+                   <button onClick={() => setResults(null)} className="px-8 py-4 glass rounded-full text-xs font-black uppercase hover:bg-white/5 transition-all">
+                     {lang === 'fa' ? 'تغییر مود' : 'Change Mood'}
+                   </button>
                 </header>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   {results.recommendations.map((m, i) => (
@@ -361,19 +358,29 @@ const App: React.FC = () => {
               </div>
             )
           ) : (
-            <div className="space-y-8 py-12">
-               <div className="glass p-12 rounded-[3rem] space-y-6">
+            <div className="space-y-8 py-12 animate-in fade-in duration-700">
+               <div className="glass p-12 rounded-[3rem] space-y-6 relative overflow-hidden">
+                  <div className="absolute top-0 right-0 p-8">
+                     <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                        <span className="text-[10px] font-black uppercase opacity-50 tracking-widest">Node Online</span>
+                     </div>
+                  </div>
                   <h2 className="text-4xl font-black">System Profile</h2>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8 opacity-60">
                      <div className="space-y-4">
                         <p>Administrator: <span className="text-white font-bold">{session?.name}</span></p>
-                        <p>Server URL: <span className="text-white font-bold font-mono">{settings.serverAddress}</span></p>
+                        <p>Server URL: <span className="text-white font-bold font-mono text-sm">{settings.serverAddress}</span></p>
                      </div>
                      <div className="space-y-4">
-                        <p>DB Endpoint: <span className="text-white font-bold font-mono">{settings.dbConfig?.host}</span></p>
-                        <p>DB Name: <span className="text-white font-bold font-mono">{settings.dbConfig?.name}</span></p>
+                        <p>DB Endpoint: <span className="text-white font-bold font-mono text-sm">{settings.dbConfig?.host}</span></p>
+                        <p>DB Name: <span className="text-white font-bold font-mono text-sm">{settings.dbConfig?.name}</span></p>
                      </div>
                   </div>
+               </div>
+               <div className="p-8 glass rounded-[2rem] border-red-500/20 bg-red-500/5">
+                  <h3 className="text-red-500 font-black mb-2">Troubleshooting 502 Errors</h3>
+                  <p className="text-xs opacity-50 leading-relaxed">If the application becomes unreachable, verify your PM2 process status and ensure the Nginx proxy is correctly pointing to your internal node port.</p>
                </div>
             </div>
           )}
