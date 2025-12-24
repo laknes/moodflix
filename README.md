@@ -1,58 +1,45 @@
 
-# Moodflix - AI Cinema Therapy 🎬
+# Moodflix - Enterprise Multi-Site Hosting 🎬
 
-Moodflix is an intelligent movie recommendation engine that uses AI (Gemini API) to analyze the user's emotional state and suggest the best cinematic works.
+اگر قصد دارید مودفلیکس را در کنار سایت‌های دیگر روی یک سرور اجرا کنید، این راهنما به شما کمک می‌کند.
 
-## 🚀 Automatic Server Installation (Fixes 502 & Nginx Config Errors)
+## 🌐 نحوه میزبانی چندین سایت روی یک آی‌پی
+انجین‌ایکس (Nginx) می‌تواند درخواست‌ها را بر اساس نام دامنه فیلتر کند. برای این کار:
+1. سایت اول شما (مثلاً `site1.com`) یک فایل کانفیگ دارد.
+2. سایت مودفلیکس (`moodflix.com`) یک فایل کانفیگ جداگانه خواهد داشت.
+3. هر دو دامنه در پنل DNS باید به آی‌پی سرور شما (A Record) اشاره کنند.
 
-This script installs **PM2** for process management and configures **Nginx** as a reverse proxy. It includes fixes for the common "invalid number of arguments" error in Nginx configuration.
-
-### `install.sh` Script:
+### `install.sh` (نسخه مولتی-سایت):
 
 ```bash
 #!/bin/bash
 
-# --- Moodflix Professional Installer (PM2 + Nginx) ---
+# --- Moodflix Multi-Site Installer ---
+echo "🚀 Starting Moodflix Multi-Site Installation..."
 
-echo "🚀 Starting Moodflix Enterprise Installation..."
+# 1. نصب پیش‌نیازها (اگر نصب نیستند)
+sudo apt-get update
+sudo apt-get install -y nodejs npm nginx pm2
 
-# 1. Cleanup & Preparation
-echo "🧹 Cleaning old Node.js versions..."
-sudo apt-get remove -y nodejs npm
-sudo apt-get autoremove -y
-
-# 2. Install Node.js v20 LTS
-echo "📦 Installing Node.js v20..."
-curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
-sudo apt-get install -y nodejs nginx git certbot python3-certbot-nginx
-
-# 3. Install PM2 (Process Manager)
-echo "⚙️ Installing PM2..."
-sudo npm install -g pm2
-
-# 4. Configure App Details
-read -p "🌐 Enter your Domain or IP (e.g., moodflix.com or 1.2.3.4): " DOMAIN
-read -p "🔌 Internal App Port (Default 3000): " PORT
+# 2. دریافت اطلاعات سایت جدید
+read -p "🌐 دامنه جدید را وارد کنید (e.g. mood.mysite.com): " DOMAIN
+read -p "🔌 پورت داخلی اپلیکیشن (Default 3000): " PORT
 PORT=${PORT:-3000}
 
-# 5. Build & Start App
-echo "🏗 Building application..."
+# 3. بیلد پروژه
+echo "🏗 Building Project..."
 npm install
 npm run build
 
-echo "⚡ Starting background process with PM2..."
-pm2 delete moodflix 2>/dev/null
-pm2 start npm --name "moodflix" -- start -- --port $PORT
-
-# 6. Save PM2 state for auto-reboot
+# 4. اجرای پروژه با PM2 (با نام منحصر به فرد بر اساس دامنه)
+echo "⚡ Starting App with PM2..."
+pm2 start npm --name "moodflix-$DOMAIN" -- start -- --port $PORT
 pm2 save
-sudo env PATH=$PATH:/usr/bin /usr/lib/node_modules/pm2/bin/pm2 startup systemd -u $USER --hp $HOME
 
-# 7. Configure Nginx Proxy
-echo "🛠 Configuring Nginx for $DOMAIN..."
+# 5. تنظیم انجین‌ایکس (بدون تداخل با سایت‌های قبلی)
+echo "⚙️ Configuring Nginx Server Block..."
 NGINX_CONF="/etc/nginx/sites-available/$DOMAIN"
 
-# Note: Dollar signs are escaped with \ to prevent Bash from interpreting them
 sudo bash -c "cat > $NGINX_CONF <<EOF
 server {
     listen 80;
@@ -72,19 +59,23 @@ server {
 }
 EOF"
 
-sudo ln -sf /etc/nginx/sites-available/$DOMAIN /etc/nginx/sites-enabled/
-sudo rm -f /etc/nginx/sites-enabled/default 2>/dev/null
-echo "🧪 Testing Nginx configuration..."
+# فعال‌سازی کانفیگ جدید
+sudo ln -sf $NGINX_CONF /etc/nginx/sites-enabled/
+
+# تست و ریستارت انجین‌ایکس
+echo "🧪 Testing Nginx..."
 sudo nginx -t && sudo systemctl restart nginx
 
-echo "✅ Installation Success!"
-echo "📍 Access your site at: http://$DOMAIN"
+echo "✅ سایت جدید با موفقیت روی دامنه $DOMAIN بالا آمد!"
+echo "📍 حالا هر دو سایت شما روی یک آی‌پی اما با دامنه‌های متفاوت در دسترس هستند."
 ```
 
-### 🛠 Troubleshooting:
-1. **502 Bad Gateway**: Usually means the app isn't running. Run `pm2 status` to check if "moodflix" is online. If not, run `pm2 start moodflix`.
-2. **Nginx Config Error**: If `nginx -t` fails with "invalid number of arguments", it means the `$` signs in the config file were deleted. The updated script above uses `\\\$` to prevent this.
-3. **Logs**: Check app errors with `pm2 logs moodflix` or Nginx errors with `sudo tail -f /var/log/nginx/error.log`.
+### 💡 نکات مهم برای پایداری:
+- **تداخل پورت**: دقت کنید که پورت داخلی (مثلاً ۳۰۰۰) توسط سایت دیگری اشغال نشده باشد.
+- **SSL**: برای هر دامنه می‌توانید جداگانه گواهی SSL بگیرید:
+  `sudo certbot --nginx -d mood.mysite.com`
+- **فایل Default**: اگر انجین‌ایکس سایت اشتباهی را باز می‌کند، فایل پیش‌فرض را حذف کنید:
+  `sudo rm /etc/nginx/sites-enabled/default` و سپس `sudo systemctl restart nginx`.
 
 ---
-Developed by **Moodflix Team** ❤️
+Developed with ❤️ by Moodflix Team
