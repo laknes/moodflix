@@ -8,9 +8,8 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <link rel="manifest" href="manifest.json" />
-    <title>Moodflix - AI Cinema Therapy</title>
+    <title>Moodflix - سینمای حالِ خوب</title>
     
-    <!-- Polyfill for process to prevent white screen -->
     <script>
       window.process = { env: { NODE_ENV: 'production' } };
     </script>
@@ -24,7 +23,6 @@
         theme: {
           extend: {
             colors: {
-              border: "hsl(var(--border))",
               netflix: "#E50914",
             },
             fontFamily: {
@@ -49,7 +47,7 @@
 }
 </script>
   </head>
-  <body>
+  <body class="bg-[#020617] text-white overflow-x-hidden">
     <div id="root"></div>
     <script type="module" src="./index.tsx"></script>
   </body>
