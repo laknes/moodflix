@@ -35,12 +35,18 @@ export const getAiRecommendations = async (input: UserMoodInput, settings: Syste
 };
 
 const callGemini = async (input: UserMoodInput, settings: SystemSettings): Promise<RecommendationResponse> => {
-  const apiKey = settings.geminiKey || process.env.API_KEY;
+  // Safe access to process.env to prevent crashes
+  const envKey = typeof process !== 'undefined' ? process.env.API_KEY : undefined;
+  const apiKey = settings.geminiKey || envKey;
+  
+  if (!apiKey) {
+    throw new Error("API Key not found. Please provide it in settings.");
+  }
+
   const ai = new GoogleGenAI({ apiKey: apiKey as string });
   
   const targetLang = input.language === 'fa' ? 'Persian (Farsi)' : 'English';
 
-  // Format feedback for the prompt
   const likes = input.feedbackHistory?.filter(f => f.type === 'like').map(f => `${f.title} (${f.genre.join(', ')})`).join(', ') || 'None';
   const dislikes = input.feedbackHistory?.filter(f => f.type === 'dislike').map(f => `${f.title} (${f.genre.join(', ')})`).join(', ') || 'None';
 
@@ -49,10 +55,9 @@ Recommend 1 to 3 movies/media for: Mood=${input.primaryMood}, Mode=${input.mode}
 All text responses must be strictly in ${targetLang}.
 Use Google Search tool to find REAL official poster URLs.
 
-USER PREFERENCES (Based on previous feedback):
-- Liked titles/genres: ${likes}
-- Disliked titles/genres: ${dislikes}
-- IMPORTANT: Refine your current suggestions based on these preferences. Avoid recommending movies similar to the 'Disliked' list and prioritize styles/genres found in the 'Liked' list where appropriate for the mood.
+USER PREFERENCES:
+- Liked: ${likes}
+- Disliked: ${dislikes}
 
 Return valid JSON matching the provided schema.`;
 
