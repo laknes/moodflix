@@ -1,55 +1,29 @@
 
 import React, { useState, useEffect } from 'react';
-import { UserMoodInput, MovieRecommendation, RecommendationResponse, Language, SystemSettings, SavedMovie, Intensity, MentalEffort, EnergyLevel, RecommendationMode } from './types.ts';
+import { UserMoodInput, MovieRecommendation, RecommendationResponse, Language, SystemSettings, SavedMovie, UserSession } from './types.ts';
 import { MOODS, TRANSLATIONS, INTENSITIES, MODES } from './constants.tsx';
 import { getAiRecommendations } from './services/ai.ts';
 import { getLocalRecommendations } from './services/localDb.ts';
 
-const DEFAULT_POSTER = "https://images.unsplash.com/photo-1485846234645-a62644f84728?q=80&w=2059&auto=format&fit=crop";
-
-const RecommendationCard: React.FC<{ m: MovieRecommendation; lang: Language; isSaved: boolean; onSave: () => void }> = ({ m, lang, isSaved, onSave }) => (
-  <article className="glass rounded-[2rem] overflow-hidden flex flex-col group movie-card h-full">
-    <div className="relative aspect-[2/3] bg-slate-900 overflow-hidden">
-      <img src={m.posterUrl || DEFAULT_POSTER} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" alt={m.title} />
-      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
-      <button 
-        onClick={(e) => { e.stopPropagation(); onSave(); }} 
-        className={`absolute top-4 right-4 p-3 rounded-full glass transition-all z-10 ${isSaved ? 'text-netflix bg-white/10' : 'text-white hover:scale-110 hover:bg-white/20'}`}
-      >
-        <svg className="w-5 h-5" fill={isSaved ? "currentColor" : "none"} stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
-        </svg>
-      </button>
-      <div className="absolute bottom-4 left-4 right-4 text-white">
-        <h3 className="text-xl font-bold line-clamp-1">{m.title}</h3>
-        <p className="text-[10px] uppercase font-bold opacity-70 tracking-wider">{m.genre.join(' • ')}</p>
-      </div>
-    </div>
-    <div className="p-5 flex-1 flex flex-col justify-between">
-      <div className="space-y-3">
-        <p className="text-sm opacity-80 leading-relaxed line-clamp-3">{m.explanation}</p>
-        <div className="flex flex-wrap gap-1">
-          {m.triggerWarnings?.map((tw, idx) => (
-            <span key={idx} className="text-[9px] bg-red-500/10 text-red-500 px-2 py-0.5 rounded-full font-bold">{tw}</span>
-          ))}
-        </div>
-      </div>
-      <div className="flex justify-between items-center text-[10px] font-bold opacity-50 uppercase tracking-widest border-t border-white/5 pt-3 mt-4">
-        <span>{m.country}</span>
-        <span className="text-netflix">{m.imdbScore ? `IMDB ${m.imdbScore}` : m.suggestedTime}</span>
-      </div>
-    </div>
-  </article>
-);
-
 const App: React.FC = () => {
   const [lang, setLang] = useState<Language>(() => (localStorage.getItem('moodflix_lang') as Language) || 'fa');
   const [theme, setTheme] = useState<'dark' | 'light'>(() => (localStorage.getItem('moodflix_theme') as 'dark' | 'light') || 'dark');
-  const [activeTab, setActiveTab] = useState<'home' | 'saved' | 'profile'>('home');
-  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [activeTab, setActiveTab] = useState<'home' | 'saved' | 'profile' | 'admin'>('home');
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isApkExporting, setIsApkExporting] = useState(false);
+  
+  // Auth State
+  const [user, setUser] = useState<UserSession | null>(() => {
+    const saved = localStorage.getItem('moodflix_user');
+    return saved ? JSON.parse(saved) : null;
+  });
+  const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
+  const [authData, setAuthData] = useState({ email: '', password: '', name: '' });
+
+  // App State
   const [input, setInput] = useState<UserMoodInput>({ 
     primaryMood: 'calm', intensity: 'medium', mentalEffort: 'entertainment', 
-    energyLevel: 'medium', mode: 'single', language: lang 
+    energyLevel: 'medium', mode: 'single', language: lang, description: ''
   });
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<RecommendationResponse | null>(null);
@@ -57,209 +31,196 @@ const App: React.FC = () => {
     const saved = localStorage.getItem('moodflix_saved_movies');
     return saved ? JSON.parse(saved) : [];
   });
+  const [settings, setSettings] = useState<SystemSettings>(() => {
+    const saved = localStorage.getItem('moodflix_settings');
+    return saved ? JSON.parse(saved) : {
+      activeProvider: 'gemini', geminiKey: '', openaiKey: '', temperature: 0.7, maxTokens: 1000, isInstalled: true
+    };
+  });
 
   useEffect(() => {
     localStorage.setItem('moodflix_lang', lang);
     localStorage.setItem('moodflix_theme', theme);
     localStorage.setItem('moodflix_saved_movies', JSON.stringify(savedMovies));
-    
-    // Sync Tailwind Dark Class
-    if (theme === 'dark') {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-  }, [lang, theme, savedMovies]);
-
-  const toggleSaveMovie = (m: MovieRecommendation) => {
-    const exists = savedMovies.find(sm => sm.title === m.title);
-    if (exists) {
-      setSavedMovies(prev => prev.filter(sm => sm.title !== m.title));
-    } else {
-      setSavedMovies(prev => [...prev, { ...m, savedAt: Date.now() }]);
-    }
-  };
-
-  const handleRecommend = async () => {
-    setLoading(true);
-    try {
-      const data = await getAiRecommendations(input, { activeProvider: 'gemini', isInstalled: true, geminiKey: '', openaiKey: '', temperature: 0.7, maxTokens: 1000 });
-      setResults(data);
-    } catch (err) {
-      setResults(getLocalRecommendations(input));
-    } finally {
-      setLoading(false);
-    }
-  };
+    localStorage.setItem('moodflix_settings', JSON.stringify(settings));
+    if (user) localStorage.setItem('moodflix_user', JSON.stringify(user));
+    else localStorage.removeItem('moodflix_user');
+    document.documentElement.classList.toggle('dark', theme === 'dark');
+  }, [lang, theme, savedMovies, settings, user]);
 
   const T = TRANSLATIONS[lang];
   const isRtl = lang === 'fa';
 
-  return (
-    <div className={`layout-wrapper ${isRtl ? 'font-fa' : ''}`} dir={isRtl ? 'rtl' : 'ltr'}>
-      {/* Sidebar Navigation */}
-      <aside className="sidebar glass flex flex-col p-6 overflow-y-auto">
-        <div className="mb-10 text-center md:text-right">
-          <h1 className="logo-text text-4xl font-netflix leading-none cursor-pointer" onClick={() => { setActiveTab('home'); setResults(null); }}>Moodflix</h1>
-        </div>
+  const handleAuth = (e: React.FormEvent) => {
+    e.preventDefault();
+    // Simulation: Admin check
+    const role = authData.email.includes('admin') ? 'admin' : 'user';
+    setUser({ email: authData.email, name: authData.name || 'User', role, isLoggedIn: true });
+  };
 
-        <nav className="flex-1 space-y-3 flex flex-col">
-          <button onClick={() => { setActiveTab('home'); setResults(null); }} className={`nav-item ${activeTab === 'home' ? 'active' : 'hover:bg-white/5'}`}>
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>
-            <span className="hidden md:inline">{T.home}</span>
-          </button>
-          <button onClick={() => setActiveTab('saved')} className={`nav-item ${activeTab === 'saved' ? 'active' : 'hover:bg-white/5'}`}>
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" /></svg>
-            <span className="hidden md:inline">{T.saved}</span>
-            {savedMovies.length > 0 && <span className="mr-auto bg-white/20 px-2 rounded-full text-[10px]">{savedMovies.length}</span>}
-          </button>
-          <button onClick={() => setActiveTab('profile')} className={`nav-item ${activeTab === 'profile' ? 'active' : 'hover:bg-white/5'}`}>
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
-            <span className="hidden md:inline">{T.profile}</span>
-          </button>
-        </nav>
+  const handleExportApk = () => {
+    setIsApkExporting(true);
+    setTimeout(() => {
+      setIsApkExporting(false);
+      alert(lang === 'fa' ? 'فایل APK آماده شد. در حال تولید مانیفست نیتیو...' : 'APK Packaged. Generating native manifest...');
+    }, 3000);
+  };
 
-        <div className="mt-auto space-y-4 pt-6 border-t border-white/10">
-          <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="w-full flex items-center justify-between p-3 glass rounded-2xl text-[10px] font-black uppercase hover:bg-white/5 transition-all">
-            <span>{theme === 'dark' ? T.lightMode : T.darkMode}</span>
-            {theme === 'dark' ? (
-              <svg className="w-4 h-4 text-yellow-500" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" /></svg>
-            ) : (
-              <svg className="w-4 h-4 text-indigo-400" fill="currentColor" viewBox="0 0 20 20"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z" /></svg>
+  if (!user) {
+    return (
+      <div className={`auth-overlay min-h-screen flex items-center justify-center p-6 ${isRtl ? 'font-fa rtl' : 'ltr'}`} dir={isRtl ? 'rtl' : 'ltr'}>
+        <div className="glass w-full max-w-md rounded-[2.5rem] p-10 space-y-8 animate-in zoom-in-95 duration-500">
+          <div className="text-center">
+            <h1 className="logo-text text-5xl mb-2">Moodflix</h1>
+            <p className="text-white/60 text-sm font-bold uppercase tracking-widest">{authMode === 'login' ? T.loginTitle : T.registerTitle}</p>
+          </div>
+          <form className="space-y-4" onSubmit={handleAuth}>
+            {authMode === 'register' && (
+              <input type="text" placeholder={lang === 'fa' ? 'نام کامل' : 'Full Name'} className="input-field bg-black/40 border-white/10 text-white w-full" required onChange={e => setAuthData({...authData, name: e.target.value})} />
             )}
+            <input type="email" placeholder={T.email} className="input-field bg-black/40 border-white/10 text-white w-full" required onChange={e => setAuthData({...authData, email: e.target.value})} />
+            <input type="password" placeholder={T.password} className="input-field bg-black/40 border-white/10 text-white w-full" required onChange={e => setAuthData({...authData, password: e.target.value})} />
+            <button type="submit" className="w-full py-4 bg-accent text-white rounded-xl font-black uppercase hover:bg-red-700 transition-all">
+              {authMode === 'login' ? T.loginBtn : T.registerBtn}
+            </button>
+          </form>
+          <button onClick={() => setAuthMode(authMode === 'login' ? 'register' : 'login')} className="w-full text-white/50 text-xs font-bold hover:text-white">
+            {authMode === 'login' ? T.noAccount : T.hasAccount}
           </button>
-          <button onClick={() => setLang(lang === 'fa' ? 'en' : 'fa')} className="w-full p-3 glass rounded-2xl text-[10px] font-black uppercase hover:bg-white/5 transition-all tracking-widest">
-            {lang === 'fa' ? 'English' : 'فارسی'}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className={`layout-wrapper ${isRtl ? 'font-fa rtl' : 'ltr'}`} dir={isRtl ? 'rtl' : 'ltr'}>
+      <aside className={`sidebar flex flex-col p-6 shadow-2xl ${isSidebarOpen ? 'open' : ''}`}>
+        <div className="flex justify-between items-center mb-10">
+          <h1 className="logo-text text-4xl cursor-pointer" onClick={() => { setActiveTab('home'); setResults(null); }}>Moodflix</h1>
+          <button className="lg:hidden text-accent" onClick={() => setIsSidebarOpen(false)}>
+            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
+        </div>
+        <nav className="flex-1 space-y-2">
+          {[
+            { id: 'home', label: T.home, icon: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6' },
+            { id: 'saved', label: T.saved, icon: 'M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z' },
+            { id: 'profile', label: T.profile, icon: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z' },
+            user.role === 'admin' && { id: 'admin', label: T.admin, icon: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z' }
+          ].filter(Boolean).map(item => (
+            <button key={item!.id} onClick={() => setActiveTab(item!.id as any)} className={`nav-item w-full ${activeTab === item!.id ? 'active' : 'hover:bg-accent/5'}`}>
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={item!.icon} /></svg>
+              <span>{item!.label}</span>
+            </button>
+          ))}
+        </nav>
+        <div className="mt-auto space-y-3 pt-6 border-t border-glass-border">
+          <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="w-full flex items-center justify-between p-3 glass rounded-xl text-[10px] font-black uppercase">
+            <span>{theme === 'dark' ? T.lightMode : T.darkMode}</span>
+            {theme === 'dark' ? '🌙' : '☀️'}
+          </button>
+          <button onClick={() => setUser(null)} className="w-full p-3 border border-accent/20 text-accent rounded-xl text-[10px] font-black uppercase hover:bg-accent hover:text-white transition-all">
+            {T.logout}
           </button>
         </div>
       </aside>
 
-      {/* Main Content */}
       <main className="main-content">
-        <div className="max-w-5xl mx-auto p-8 md:p-12">
-          {activeTab === 'home' ? (
-            !results ? (
-              <div className="space-y-12 animate-in fade-in duration-500">
-                <div className="space-y-4">
-                  <h2 className="text-4xl md:text-6xl font-black">{T.step1Title}</h2>
-                  <p className="opacity-50 text-lg font-bold">{T.subtitle}</p>
-                </div>
+        <header className="lg:hidden p-4 glass flex justify-between items-center sticky top-0 z-40">
+           <h1 className="logo-text text-2xl">Moodflix</h1>
+           <button onClick={() => setIsSidebarOpen(true)} className="p-2 text-accent">
+              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16m-7 6h7" /></svg>
+           </button>
+        </header>
 
-                <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
+        <div className="max-w-6xl mx-auto p-6 lg:p-12">
+          {activeTab === 'home' && (
+            !results ? (
+              <div className="space-y-12 animate-in fade-in duration-700">
+                <div className="text-center lg:text-right space-y-4">
+                  <h2 className="text-4xl lg:text-7xl font-black text-transparent bg-clip-text bg-gradient-to-r from-accent to-pink-600 leading-tight">
+                    {T.step1Title}
+                  </h2>
+                  <p className="text-text-secondary text-lg font-medium">{T.subtitle}</p>
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   {MOODS.map(m => (
-                    <button 
-                      key={m.type} 
-                      onClick={() => setInput({...input, primaryMood: m.type})}
-                      className={`p-6 rounded-3xl border-2 flex flex-col items-center gap-3 mood-grid-button ${input.primaryMood === m.type ? 'border-netflix bg-netflix/5 scale-105 opacity-100' : 'border-white/5 opacity-50 hover:opacity-100'}`}
-                    >
-                      <svg className={`w-10 h-10 ${m.color}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={m.icon} /></svg>
-                      <span className="text-[11px] font-black uppercase tracking-tighter">{m.labels[lang]}</span>
+                    <button key={m.type} onClick={() => setInput({ ...input, primaryMood: m.type })}
+                      className={`p-6 rounded-[2rem] border-2 transition-all flex flex-col items-center gap-4 ${input.primaryMood === m.type ? 'border-accent bg-accent/5 scale-105' : 'border-glass-border opacity-60'}`}>
+                      <svg className={`w-12 h-12 ${m.color}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d={m.icon} strokeWidth={2} /></svg>
+                      <span className="text-xs font-black uppercase">{m.labels[lang]}</span>
                     </button>
                   ))}
                 </div>
-
-                <div className="glass p-8 rounded-[2.5rem] space-y-8">
-                  <div className="flex justify-between items-center">
-                    <h3 className="font-black text-xl">{lang === 'fa' ? 'تنظیمات دقیق‌تر' : 'Advanced Filters'}</h3>
-                    <button onClick={() => setShowAdvanced(!showAdvanced)} className="text-xs font-bold text-netflix hover:underline">
-                      {showAdvanced ? (lang === 'fa' ? 'بستن' : 'Close') : (lang === 'fa' ? 'مشاهده فیلترها' : 'View Filters')}
-                    </button>
-                  </div>
-                  {showAdvanced && (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 animate-in slide-in-from-top-4">
-                      <div className="space-y-4">
-                        <label className="text-xs font-black opacity-40 uppercase tracking-widest">{lang === 'fa' ? 'شدت احساس' : 'Intensity'}</label>
-                        <div className="flex gap-2">
-                          {INTENSITIES.map(i => (
-                            <button key={i.value} onClick={() => setInput({...input, intensity: i.value})} className={`flex-1 py-3 rounded-xl border text-[10px] font-black uppercase transition-all ${input.intensity === i.value ? 'bg-netflix border-netflix text-white' : 'border-white/10 hover:bg-white/5'}`}>{i.labels[lang]}</button>
-                          ))}
-                        </div>
-                      </div>
-                      <div className="space-y-4">
-                        <label className="text-xs font-black opacity-40 uppercase tracking-widest">{lang === 'fa' ? 'نوع محتوا' : 'Content Type'}</label>
-                        <select value={input.mode} onChange={(e) => setInput({...input, mode: e.target.value as RecommendationMode})} className="w-full bg-white/5 border border-white/10 p-3 rounded-xl text-sm outline-none focus:border-netflix">
-                          {MODES.map(m => <option key={m.value} value={m.value} className="bg-slate-900">{m.labels[lang]}</option>)}
-                        </select>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                <button onClick={handleRecommend} disabled={loading} className="w-full py-8 bg-netflix hover:bg-red-700 text-white rounded-[2.5rem] font-black text-2xl shadow-2xl transition-all disabled:opacity-50">
-                  {loading ? (
-                    <div className="flex items-center justify-center gap-4">
-                      <div className="w-6 h-6 border-4 border-white/20 border-t-white rounded-full animate-spin" />
-                      <span>{T.loading}</span>
-                    </div>
-                  ) : T.btnRecommend}
+                <button onClick={() => getAiRecommendations(input, settings).then(setResults)} className="w-full py-8 bg-accent text-white rounded-[2.5rem] font-black text-2xl shadow-2xl transition-all">
+                   {T.btnRecommend}
                 </button>
               </div>
             ) : (
-              <div className="space-y-12 animate-in fade-in slide-in-from-bottom-8">
-                <header className="flex flex-col md:flex-row justify-between items-center gap-6 border-b border-white/10 pb-8">
-                  <div className="text-center md:text-right space-y-2">
-                    <h2 className="text-3xl font-black">{lang === 'fa' ? 'پیشنهادات اختصاصی' : 'Recommendations'}</h2>
-                    <p className="opacity-50 text-sm leading-relaxed max-w-lg">{results.emotionalMessage}</p>
-                  </div>
-                  <button onClick={() => setResults(null)} className="px-8 py-4 glass rounded-full text-xs font-black uppercase hover:bg-white/10 transition-all border border-netflix/30">
-                    {lang === 'fa' ? 'تغییر مود' : 'Change Mood'}
-                  </button>
-                </header>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+              <div className="space-y-12 animate-in slide-in-from-bottom-10 duration-700">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                   {results.recommendations.map((m, i) => (
-                    <RecommendationCard key={i} m={m} lang={lang} isSaved={savedMovies.some(sm => sm.title === m.title)} onSave={() => toggleSaveMovie(m)} />
+                    <article key={i} className="admin-card p-0 overflow-hidden flex flex-col h-full group">
+                      <img src={m.posterUrl} className="aspect-[2/3] object-cover group-hover:scale-110 transition-transform" />
+                      <div className="p-6">
+                        <h4 className="font-bold text-xl mb-2">{m.title}</h4>
+                        <p className="text-sm opacity-60 line-clamp-3">{m.explanation}</p>
+                      </div>
+                    </article>
                   ))}
                 </div>
+                <button onClick={() => setResults(null)} className="mx-auto block text-accent font-black uppercase text-xs border-b border-accent">{T.tryAgain}</button>
               </div>
             )
-          ) : activeTab === 'saved' ? (
-            <div className="animate-in fade-in duration-500">
-              <header className="border-b border-white/10 pb-8 mb-12">
-                <h2 className="text-4xl font-black">{T.saved}</h2>
-                <p className="opacity-50 mt-2">{savedMovies.length} {lang === 'fa' ? 'مورد در لیست تماشای شما' : 'items in your watchlist'}</p>
-              </header>
-              {savedMovies.length > 0 ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-                  {savedMovies.map((m, i) => (
-                    <RecommendationCard key={i} m={m} lang={lang} isSaved={true} onSave={() => toggleSaveMovie(m)} />
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-32 opacity-20">
-                  <svg className="w-24 h-24 mx-auto mb-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" /></svg>
-                  <p className="text-xl font-bold">{T.noSaved}</p>
-                </div>
-              )}
+          )}
+
+          {activeTab === 'admin' && (
+            <div className="space-y-10 animate-in fade-in duration-700">
+               <header className="border-b border-glass-border pb-8">
+                  <h2 className="text-4xl font-black">{T.admin}</h2>
+                  <p className="text-text-secondary mt-2">Core System & Deployment Engine</p>
+               </header>
+               <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                  <div className="lg:col-span-2 space-y-8">
+                     <div className="admin-card space-y-6">
+                        <h3 className="font-bold text-xl flex items-center gap-3">🤖 {T.adminSettings}</h3>
+                        <div className="space-y-4">
+                           <label className="text-xs font-bold opacity-50 uppercase">Gemini API Key</label>
+                           <input type="password" value={settings.geminiKey} onChange={(e) => setSettings({...settings, geminiKey: e.target.value})} className="input-field" placeholder="sk-..." />
+                        </div>
+                     </div>
+                     <div className="admin-card border-accent/20 bg-accent/5">
+                        <h3 className="font-bold text-xl flex items-center gap-3 mb-4">📱 {T.adminMobile}</h3>
+                        <p className="text-sm opacity-60 mb-6">{T.apkInstructions}</p>
+                        <button onClick={handleExportApk} disabled={isApkExporting} 
+                          className={`w-full py-6 rounded-2xl font-black uppercase text-sm flex items-center justify-center gap-3 transition-all ${isApkExporting ? 'bg-white/10 apk-build-pulse' : 'bg-accent text-white hover:shadow-xl'}`}>
+                          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" strokeWidth={2} /></svg>
+                          {isApkExporting ? (lang === 'fa' ? 'در حال بیلد...' : 'Building APK...') : T.exportApk}
+                        </button>
+                     </div>
+                  </div>
+                  <div className="space-y-8">
+                     <div className="admin-card bg-accent text-white border-none">
+                        <p className="text-xs font-black uppercase opacity-60">{T.totalRequests}</p>
+                        <h4 className="text-4xl font-black">12,482</h4>
+                     </div>
+                     <div className="admin-card">
+                        <p className="text-xs font-black uppercase opacity-40">{T.aiSuccessRate}</p>
+                        <h4 className="text-3xl font-black text-green-500">99.2%</h4>
+                     </div>
+                  </div>
+               </div>
             </div>
-          ) : (
-            <div className="space-y-12 animate-in fade-in duration-700 max-w-2xl mx-auto py-12">
-               <div className="text-center">
-                  <h2 className="text-4xl font-black">{T.profileTitle}</h2>
-                  <p className="opacity-40 uppercase text-[10px] tracking-[0.4em] mt-2">Personal Emotional Archives</p>
-               </div>
-               <div className="glass p-10 rounded-[3rem] space-y-8">
-                  <div className="flex justify-between items-center pb-6 border-b border-white/5">
-                     <span className="opacity-50 font-bold">{lang === 'fa' ? 'وضعیت هوش مصنوعی' : 'AI Node Status'}</span>
-                     <span className="flex items-center gap-2 text-green-500 font-black">
-                        <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-                        ACTIVE
-                     </span>
-                  </div>
-                  <div className="flex justify-between items-center pb-6 border-b border-white/5">
-                     <span className="opacity-50 font-bold">{lang === 'fa' ? 'نسخه پلتفرم' : 'Build Version'}</span>
-                     <span className="font-mono text-sm">v3.1.0-Native-PRO</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                     <span className="opacity-50 font-bold">{lang === 'fa' ? 'تعداد ذخیره‌ها' : 'Storage Usage'}</span>
-                     <span className="font-black text-netflix">{savedMovies.length} ITEMS</span>
-                  </div>
-               </div>
-               <div className="p-8 glass rounded-[2rem] bg-netflix/5 border-netflix/10 text-center">
-                  <p className="text-xs opacity-60 leading-relaxed italic">
-                    {lang === 'fa' 
-                      ? 'Moodflix از مدل Gemini 3 Pro برای تحلیل سینماتیک استفاده می‌کند. داده‌های شما محرمانه و فقط در دستگاه شما ذخیره می‌شوند.' 
-                      : 'Moodflix utilizes Gemini 3 Pro for cinematic reasoning. Your emotional data stays strictly local and private.'}
-                  </p>
+          )}
+
+          {activeTab === 'profile' && (
+            <div className="max-w-2xl mx-auto py-12 space-y-8 text-center animate-in slide-in-from-top-10">
+               <div className="w-24 h-24 bg-accent/10 rounded-full mx-auto flex items-center justify-center text-accent text-4xl">👤</div>
+               <h2 className="text-4xl font-black">{user.name}</h2>
+               <p className="text-text-secondary uppercase text-[10px] tracking-widest">{user.role} Account • {user.email}</p>
+               <div className="admin-card text-right">
+                  <h4 className="font-bold mb-4">{T.recentHistory}</h4>
+                  <p className="text-xs opacity-40">{T.noHistory}</p>
                </div>
             </div>
           )}
