@@ -70,7 +70,18 @@ export interface SystemSettings {
   dbConfig?: {
     host: string;
     user: string;
+    pass: string;
     name: string;
+  };
+  sslConfig?: {
+    cloudflareToken: string;
+    zoneId: string;
+    sslMode: 'flexible' | 'full' | 'strict';
+    proxyStatus: boolean;
+  };
+  adminSetup?: {
+    user: string;
+    pass: string;
   };
 }
 
@@ -79,4 +90,7 @@ export interface UserSession {
   name: string;
   role: 'user' | 'admin';
   isLoggedIn: boolean;
+  joinDate: string;
+  preferences: string[];
+  lastMoods: MoodType[];
 }
